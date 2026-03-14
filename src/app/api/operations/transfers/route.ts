@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
             locationId: line.sourceLocationId,
             quantity: line.quantity,
             movement: "OUT",
-            reference: doc.reference,
+            documentRef: doc.reference,
             userId: user.id,
           },
         });
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
             locationId: line.destLocationId,
             quantity: line.quantity,
             movement: "IN",
-            reference: doc.reference,
+            documentRef: doc.reference,
             userId: user.id,
           },
         });

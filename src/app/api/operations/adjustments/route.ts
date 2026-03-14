@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
             locationId: line.locationId,
             quantity: Math.abs(delta),
             movement: delta > 0 ? "IN" : "OUT",
-            reference: doc.reference,
+            documentRef: doc.reference,
             userId: user.id,
           },
         });

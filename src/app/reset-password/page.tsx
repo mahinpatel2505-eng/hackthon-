@@ -62,7 +62,7 @@ export default function ResetPasswordPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.message || "Reset failed");
+        setError(data.error || "Reset failed");
       } else {
         setSuccess(true);
         setTimeout(() => router.push("/login"), 2000);
