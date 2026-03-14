@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import Link from "next/link";
 import { format } from "date-fns";
+import { VerificationBadge } from "@/components/operations/VerificationBadge";
 
 export const metadata = {
   title: "Transfers | CoreInventory",
@@ -90,9 +91,10 @@ async function TransferList() {
                 {format(new Date(transfer.createdAt), "MMM d, HH:mm")}
               </TableCell>
               <TableCell>
-                <Badge variant="secondary" className="bg-purple-50 text-purple-700 border-purple-100 italic">
-                  {transfer.status}
-                </Badge>
+                <VerificationBadge
+                  status={transfer.status}
+                  isVerified={transfer.verified}
+                />
               </TableCell>
               <TableCell className="text-right">
                 <Button variant="ghost" size="sm" asChild>

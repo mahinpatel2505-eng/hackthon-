@@ -64,9 +64,41 @@ async function main() {
 
   // 4. Create Products
   const products = [
-    { name: "Steel Rods", sku: "SR-100", category: "Construction", reorderLevel: 50 },
-    { name: "Aluminum Sheets", sku: "AL-200", category: "Construction", reorderLevel: 20 },
-    { name: "Office Chair", sku: "OC-400", category: "Furniture", reorderLevel: 10 },
+    { 
+      name: "Steel Rods", 
+      sku: "SR-100", 
+      category: "Construction", 
+      brand: "IronForge", 
+      manufacturer: "Steel Mill A",
+      costPrice: 45.00,
+      salePrice: 75.00,
+      weight: 10.5,
+      dimensions: "100x1x1 cm",
+      reorderLevel: 50 
+    },
+    { 
+      name: "Aluminum Sheets", 
+      sku: "AL-200", 
+      category: "Construction", 
+      brand: "AluMax",
+      manufacturer: "Rolling Mill B",
+      costPrice: 120.00,
+      salePrice: 185.00,
+      weight: 5.2,
+      dimensions: "200x100x0.5 cm",
+      reorderLevel: 20 
+    },
+    { 
+      name: "Office Chair", 
+      sku: "OC-400", 
+      category: "Furniture", 
+      brand: "ErgoComfort",
+      manufacturer: "Furniture Factory Z",
+      costPrice: 85.00,
+      salePrice: 149.99,
+      weight: 12.0,
+      reorderLevel: 10 
+    },
     { name: "Desk Lamp", sku: "DL-500", category: "Office Supplies", reorderLevel: 5 },
     { name: "Monitor Arm", sku: "MA-600", category: "Electronics", reorderLevel: 15 },
   ];
@@ -75,7 +107,7 @@ async function main() {
     await prisma.product.upsert({
       where: { sku: prod.sku },
       update: {},
-      create: prod,
+      create: prod as any,
     });
   }
 
@@ -105,8 +137,10 @@ async function main() {
   });
 
   // 6. Create some sample operations (Documents)
-  await prisma.document.create({
-    data: {
+  await prisma.document.upsert({
+    where: { reference: "REC-2024-001" },
+    update: {},
+    create: {
       type: "RECEIPT",
       status: "VALIDATED",
       reference: "REC-2024-001",
@@ -121,8 +155,10 @@ async function main() {
     }
   });
 
-  await prisma.document.create({
-    data: {
+  await prisma.document.upsert({
+    where: { reference: "DEL-2024-001" },
+    update: {},
+    create: {
       type: "DELIVERY",
       status: "DRAFT",
       reference: "DEL-2024-001",

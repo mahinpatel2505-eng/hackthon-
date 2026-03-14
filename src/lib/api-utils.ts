@@ -28,15 +28,15 @@ export async function validateBody<T>(req: NextRequest, schema: z.ZodSchema<T>):
   return schema.parse(body);
 }
 
-// ────────────────────────────────────────────────────────────
-// Auth Guard
-// ────────────────────────────────────────────────────────────
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
-export async function authGuard(req: Request) {
-  // In production, verify JWT/Session
-  // For hackathon, we assume an "admin" user exists and return it
-  // This satisfies the API routes for now.
-  return { id: "admin-id", role: "ADMIN" };
+export async function authGuard(req?: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return null;
+  }
+  return session.user;
 }
 
 // ────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import Link from "next/link";
 import { format } from "date-fns";
+import { VerificationBadge } from "@/components/operations/VerificationBadge";
 
 export const metadata = {
   title: "Receipts | CoreInventory",
@@ -77,9 +78,10 @@ async function ReceiptList() {
                 {format(new Date(receipt.createdAt), "MMM d, HH:mm")}
               </TableCell>
               <TableCell>
-                <Badge variant={receipt.status === "VALIDATED" ? "default" : "secondary"}>
-                  {receipt.status}
-                </Badge>
+                <VerificationBadge 
+                  status={receipt.status} 
+                  isVerified={receipt.verified} 
+                />
               </TableCell>
               <TableCell className="text-right">
                 <Button variant="ghost" size="sm" asChild>

@@ -48,14 +48,16 @@ async function ProductList({ search }: { search?: string }) {
           <TableRow className="bg-muted/50 hover:bg-muted/50">
             <TableHead className="w-[120px]">SKU</TableHead>
             <TableHead>Product Name</TableHead>
+            <TableHead>Brand / Mfg</TableHead>
             <TableHead>Category</TableHead>
+            <TableHead className="text-right">Sale Price</TableHead>
             <TableHead className="text-center">Total Stock</TableHead>
             <TableHead>Location Breakdown</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {products.map((product) => (
+          {products.map((product: any) => (
             <TableRow key={product.id} className="group">
               <TableCell className="font-mono text-xs font-semibold">
                 {product.sku}
@@ -67,9 +69,18 @@ async function ProductList({ search }: { search?: string }) {
                 </div>
               </TableCell>
               <TableCell>
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">{product.brand || "-"}</span>
+                  <span className="text-[10px] text-muted-foreground">{product.manufacturer || ""}</span>
+                </div>
+              </TableCell>
+              <TableCell>
                 <Badge variant="outline" className="bg-muted/30">
                   {product.category}
                 </Badge>
+              </TableCell>
+              <TableCell className="text-right font-semibold text-emerald-700">
+                {product.salePrice ? `$${product.salePrice.toFixed(2)}` : "-"}
               </TableCell>
               <TableCell className="text-center">
                 <span className={product.totalStock <= (product.reorderLevel || 0) ? "text-amber-600 font-bold" : "font-medium"}>

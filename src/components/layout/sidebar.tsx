@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import {
   LayoutDashboard,
   Package,
@@ -17,7 +19,6 @@ import {
   X,
   ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -32,7 +33,7 @@ const navItems = [
       { name: "Deliveries", href: "/operations/deliveries", icon: ArrowUpFromLine },
       { name: "Transfers", href: "/operations/transfers", icon: ArrowLeftRight },
       { name: "Adjustments", href: "/operations/adjustments", icon: ClipboardCheck },
-      { name: "Move History", href: "/operations/history", icon: History },
+      { name: "Move History", href: "/operations/ledger", icon: History },
     ],
   },
   { name: "Settings", href: "/settings", icon: Settings },
@@ -40,13 +41,18 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(true);
   const [expandedItems, setExpandedItems] = useState<string[]>(["Operations"]);
 
   const toggleItem = (name: string) => {
-    setExpandedItems((prev) =>
+    setExpandedItems((prev: string[]) =>
       prev.includes(name) ? prev.filter((i) => i !== name) : [...prev, name]
     );
+  };
+
+  const handleLogout = () => {
+    signOut({ callbackUrl: "/login" });
   };
 
   return (
@@ -140,6 +146,15 @@ export function Sidebar() {
           </nav>
 
           <div className="mt-auto pt-4 border-t space-y-2">
+            {session?.user && isOpen && (
+              <div className="px-2 py-3 mb-2 rounded-lg bg-muted/40 overflow-hidden">
+                <p className="text-xs font-bold truncate">{session.user.name}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{session.user.email}</p>
+                <div className="mt-2 text-[10px] font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded-full inline-block">
+                  {session.user.role}
+                </div>
+              </div>
+            )}
             <Link
               href="/profile"
               className={cn(
@@ -150,7 +165,10 @@ export function Sidebar() {
               <User className="w-5 h-5" />
               {isOpen && <span className="ml-3">My Profile</span>}
             </Link>
-            <button className="flex items-center w-full p-2 rounded-lg text-sm font-medium text-red-600 transition-colors hover:bg-red-50">
+            <button 
+              onClick={handleLogout}
+              className="flex items-center w-full p-2 rounded-lg text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+            >
               <LogOut className="w-5 h-5" />
               {isOpen && <span className="ml-3">Logout</span>}
             </button>

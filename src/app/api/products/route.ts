@@ -2,31 +2,37 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validators";
 import { apiResponse, validateBody, authGuard } from "@/lib/api-utils";
+import { z } from "zod";
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Auth Guard (Stub for hackathon)
     const user = await authGuard(req);
     if (!user) return apiResponse.unauthorized();
 
-    // 2. Validate Body
     const body = await validateBody(req, productSchema);
 
-    // 3. Create Product
     const product = await prisma.product.create({
       data: {
         name: body.name,
         sku: body.sku,
         category: body.category,
+        brand: body.brand,
+        manufacturer: body.manufacturer,
+        costPrice: body.costPrice,
+        salePrice: body.salePrice,
+        weight: body.weight,
+        dimensions: body.dimensions,
         uom: body.uom,
         barcode: body.barcode,
         reorderLevel: body.reorderLevel,
-      },
+      } as any, // Use any casting to avoid potential Prisma type lag during generation
     });
 
     return apiResponse.success(product, 201);
   } catch (error: any) {
-    if (error.name === "ZodError") return apiResponse.validationError(error.errors);
+    if (error instanceof z.ZodError) {
+      return apiResponse.validationError(error.issues);
+    }
     
     // Handle unique constraint (SKU)
     if (error.code === "P2002") {

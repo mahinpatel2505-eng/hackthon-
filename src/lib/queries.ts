@@ -188,7 +188,7 @@ export async function getProducts(search?: string) {
 
 export async function getReceipts() {
   try {
-    return await prisma.document.findMany({
+    const receipts = await prisma.document.findMany({
       where: { type: "RECEIPT" },
       include: {
         lines: {
@@ -200,6 +200,19 @@ export async function getReceipts() {
       },
       orderBy: { createdAt: "desc" },
     });
+
+    // Simple integrity check for RSC performance
+    const ledgerCounts = await prisma.stockLedger.groupBy({
+      by: ["documentRef"],
+      _count: true,
+    });
+
+    const ledgerMap = new Map(ledgerCounts.map((c: any) => [c.documentRef, c._count]));
+
+    return receipts.map((r: any) => ({
+      ...r,
+      verified: r.status === "VALIDATED" ? (ledgerMap.get(r.reference) || 0) >= r.lines.length : null,
+    }));
   } catch (error) {
     console.error("[QUERIES] getReceipts error:", error);
     return [];
@@ -221,7 +234,7 @@ export async function getWarehouses() {
 }
 export async function getDeliveries() {
   try {
-    return await prisma.document.findMany({
+    const documents = await prisma.document.findMany({
       where: { type: "DELIVERY" },
       include: {
         lines: {
@@ -233,6 +246,17 @@ export async function getDeliveries() {
       },
       orderBy: { createdAt: "desc" },
     });
+
+    const ledgerCounts = await prisma.stockLedger.groupBy({
+      by: ["documentRef"],
+      _count: true,
+    });
+    const ledgerMap = new Map(ledgerCounts.map((c: any) => [c.documentRef, c._count]));
+
+    return documents.map((doc: any) => ({
+      ...doc,
+      verified: doc.status === "VALIDATED" ? (ledgerMap.get(doc.reference) || 0) >= doc.lines.length : null,
+    }));
   } catch (error) {
     console.error("[QUERIES] getDeliveries error:", error);
     return [];
@@ -241,7 +265,7 @@ export async function getDeliveries() {
 
 export async function getTransfers() {
   try {
-    return await prisma.document.findMany({
+    const documents = await prisma.document.findMany({
       where: { type: "INTERNAL_TRANSFER" },
       include: {
         lines: {
@@ -254,6 +278,17 @@ export async function getTransfers() {
       },
       orderBy: { createdAt: "desc" },
     });
+
+    const ledgerCounts = await prisma.stockLedger.groupBy({
+      by: ["documentRef"],
+      _count: true,
+    });
+    const ledgerMap = new Map(ledgerCounts.map((c: any) => [c.documentRef, c._count]));
+
+    return documents.map((doc: any) => ({
+      ...doc,
+      verified: doc.status === "VALIDATED" ? (Number(ledgerMap.get(doc.reference)) || 0) >= (doc.lines.length * 2) : null,
+    }));
   } catch (error) {
     console.error("[QUERIES] getTransfers error:", error);
     return [];
@@ -294,5 +329,37 @@ export async function getLedgerEntries() {
   } catch (error) {
     console.error("[QUERIES] getLedgerEntries error:", error);
     return [];
+  }
+}
+export async function verifyDocumentIntegrity(documentId: string) {
+  try {
+    const doc = await prisma.document.findUnique({
+      where: { id: documentId },
+      include: { lines: true },
+    });
+
+    if (!doc || doc.status !== "VALIDATED") return { verified: false, reason: "Document not validated" };
+
+    const ledgerEntries = await prisma.stockLedger.findMany({
+      where: { documentRef: doc.reference },
+    });
+
+    // Check if total quantity in lines matches total quantity in ledger
+    const lineQty = doc.lines.reduce((sum: number, l: any) => sum + l.quantity, 0);
+    const ledgerQty = ledgerEntries.reduce((sum: number, e: any) => sum + e.quantity, 0);
+
+    const match = lineQty === ledgerQty && ledgerEntries.length >= doc.lines.length;
+
+    return {
+      verified: match,
+      lineQty,
+      ledgerQty,
+      entryCount: ledgerEntries.length,
+      lineCount: doc.lines.length,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error("[QUERIES] verifyDocumentIntegrity error:", error);
+    return { verified: false, reason: "Verification failed" };
   }
 }

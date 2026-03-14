@@ -17,7 +17,8 @@ export const metadata: Metadata = {
   description: "Enterprise-grade inventory management system with real-time stock tracking, receipts, deliveries, transfers, and adjustments.",
 };
 
-import { Sidebar } from "@/components/layout/sidebar";
+import { Providers } from "@/components/providers";
+import { SidebarWrapper } from "@/components/layout/sidebar-wrapper";
 
 export default function RootLayout({
   children,
@@ -29,12 +30,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <div className="flex min-h-screen bg-background text-foreground">
-          <Sidebar />
-          <div className="flex-1 md:ml-64 transition-all duration-300">
+        <Providers>
+          <SidebarWrapper>
             {children}
-          </div>
-        </div>
+          </SidebarWrapper>
+        </Providers>
       </body>
     </html>
   );

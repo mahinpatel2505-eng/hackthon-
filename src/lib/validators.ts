@@ -57,7 +57,13 @@ export const productSchema = z.object({
     .min(1, "SKU is required")
     .regex(/^[A-Z0-9\-]+$/, "SKU must be uppercase alphanumeric with dashes"),
   category: z.string().min(1, "Category is required"),
-  uom: z.string().default("units"),
+  brand: z.string().optional(),
+  manufacturer: z.string().optional(),
+  costPrice: z.number().min(0).optional().default(0),
+  salePrice: z.number().min(0).optional().default(0),
+  weight: z.number().min(0).optional(),
+  dimensions: z.string().optional(),
+  uom: z.string().default("pcs"),
   unitOfMeasure: z.string().optional(), // backward compatibility
   barcode: z.string().optional(),
   reorderLevel: z.number().int().min(0).default(10),
