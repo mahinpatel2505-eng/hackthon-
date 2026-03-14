@@ -1,0 +1,255 @@
+// ============================================================
+// CoreInventory — Enterprise-Grade Prisma Schema
+// Immutable Stock Ledger | Indexed StockQuant Cache
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ────────────────────────────────────────────────────────────
+// ENUMS
+// ────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+enum DocumentType {
+  RECEIPT
+  DELIVERY
+  INTERNAL_TRANSFER
+  ADJUSTMENT
+}
+
+enum DocumentStatus {
+  DRAFT
+  VALIDATED
+  CANCELLED
+}
+
+enum LocationType {
+  WAREHOUSE
+  RACK
+  BIN
+  STAGING
+}
+
+enum LedgerMovement {
+  IN
+  OUT
+}
+
+// ────────────────────────────────────────────────────────────
+// USER — Authentication & RBAC
+// ────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  passwordHash  String
+  role          UserRole @default(STAFF)
+  otpCode       String?
+  otpExpiresAt  DateTime?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  documents     Document[]
+  ledgerEntries StockLedger[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ────────────────────────────────────────────────────────────
+// PRODUCT — Inventory Items
+// ────────────────────────────────────────────────────────────
+
+model Product {
+  id            String   @id @default(cuid())
+  name          String
+  sku           String   @unique
+  category      String
+  unitOfMeasure String   @default("pcs")
+  reorderLevel  Int      @default(10)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  documentLines DocumentLine[]
+  stockQuants   StockQuant[]
+  ledgerEntries StockLedger[]
+
+  @@index([sku])
+  @@index([category])
+  @@index([name])
+  @@map("products")
+}
+
+// ────────────────────────────────────────────────────────────
+// WAREHOUSE — Top-Level Storage Facility
+// ────────────────────────────────────────────────────────────
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  locations Location[]
+
+  @@map("warehouses")
+}
+
+// ────────────────────────────────────────────────────────────
+// LOCATION — Racks, Bins, Staging Areas within a Warehouse
+// ────────────────────────────────────────────────────────────
+
+model Location {
+  id          String       @id @default(cuid())
+  name        String
+  type        LocationType @default(RACK)
+  warehouseId String
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  warehouse             Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  stockQuants           StockQuant[]
+  ledgerEntries         StockLedger[]
+  documentLinesAsSource DocumentLine[] @relation("SourceLocation")
+  documentLinesAsDest   DocumentLine[] @relation("DestinationLocation")
+
+  @@unique([warehouseId, name])
+  @@index([warehouseId])
+  @@index([type])
+  @@map("locations")
+}
+
+// ────────────────────────────────────────────────────────────
+// DOCUMENT — Parent record for all inventory operations
+// (Receipt, Delivery, Transfer, Adjustment)
+// ────────────────────────────────────────────────────────────
+
+model Document {
+  id          String         @id @default(cuid())
+  reference   String         @unique @default(cuid())
+  type        DocumentType
+  status      DocumentStatus @default(DRAFT)
+  notes       String?
+  supplier    String?        // Only for RECEIPT type
+  customer    String?        // Only for DELIVERY type
+  userId      String
+  validatedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  user  User           @relation(fields: [userId], references: [id])
+  lines DocumentLine[]
+
+  @@index([type])
+  @@index([status])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([type, status])
+  @@map("documents")
+}
+
+// ────────────────────────────────────────────────────────────
+// DOCUMENT LINE — Individual line items (products) in a doc
+// ────────────────────────────────────────────────────────────
+
+model DocumentLine {
+  id                String  @id @default(cuid())
+  documentId        String
+  productId         String
+  quantity          Float
+  sourceLocationId  String?
+  destLocationId    String?
+
+  // Relations
+  document          Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  product           Product  @relation(fields: [productId], references: [id])
+  sourceLocation    Location? @relation("SourceLocation", fields: [sourceLocationId], references: [id])
+  destLocation      Location? @relation("DestinationLocation", fields: [destLocationId], references: [id])
+
+  @@index([documentId])
+  @@index([productId])
+  @@map("document_lines")
+}
+
+// ────────────────────────────────────────────────────────────
+// STOCK QUANT — Real-time stock cache (product × location)
+// This is a materialized/cached view for fast dashboard reads.
+// Updated within ACID transactions alongside the ledger.
+// ────────────────────────────────────────────────────────────
+
+model StockQuant {
+  id          String   @id @default(cuid())
+  productId   String
+  locationId  String
+  quantity    Float    @default(0)
+  reservedQty Float    @default(0)  // For pending deliveries
+  lastUpdated DateTime @updatedAt
+
+  // Relations
+  product  Product  @relation(fields: [productId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+
+  // THE critical index: one row per product-location pair
+  @@unique([productId, locationId])
+  @@index([productId])
+  @@index([locationId])
+  @@index([quantity])
+  @@map("stock_quants")
+}
+
+// ────────────────────────────────────────────────────────────
+// STOCK LEDGER — Immutable, Append-Only Movement Log
+// This is the SINGLE SOURCE OF TRUTH for all inventory changes.
+// NEVER update or delete rows from this table.
+// ────────────────────────────────────────────────────────────
+
+model StockLedger {
+  id           String         @id @default(cuid())
+  productId    String
+  locationId   String
+  movement     LedgerMovement
+  quantity     Float          // Always positive; direction from 'movement'
+  balanceAfter Float          // Snapshot of StockQuant.quantity AFTER this entry
+  documentRef  String         // Reference to the parent Document
+  description  String?        // Human-readable note (e.g. "Receipt from Supplier X")
+  userId       String         // Who validated / triggered this movement
+  createdAt    DateTime       @default(now())
+
+  // Relations
+  product  Product  @relation(fields: [productId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  // Indexes for dashboard queries
+  @@index([productId])
+  @@index([locationId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([movement])
+  @@index([documentRef])
+  @@index([productId, locationId, createdAt])
+  @@map("stock_ledger")
+}
