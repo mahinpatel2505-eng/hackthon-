@@ -154,3 +154,145 @@ export async function getFilterOptions() {
     })),
   };
 }
+
+export async function getProducts(search?: string) {
+  try {
+    const products = await prisma.product.findMany({
+      where: search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" } },
+              { sku: { contains: search, mode: "insensitive" } },
+            ],
+          }
+        : {},
+      include: {
+        stockQuants: {
+          include: {
+            location: true,
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    return products.map((p: any) => ({
+      ...p,
+      totalStock: p.stockQuants.reduce((sum: number, sq: any) => sum + sq.quantity, 0),
+    }));
+  } catch (error) {
+    console.error("[QUERIES] getProducts error:", error);
+    return [];
+  }
+}
+
+export async function getReceipts() {
+  try {
+    return await prisma.document.findMany({
+      where: { type: "RECEIPT" },
+      include: {
+        lines: {
+          include: {
+            product: true,
+            destLocation: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (error) {
+    console.error("[QUERIES] getReceipts error:", error);
+    return [];
+  }
+}
+
+export async function getWarehouses() {
+  try {
+    return await prisma.warehouse.findMany({
+      include: {
+        locations: true,
+      },
+      orderBy: { name: "asc" },
+    });
+  } catch (error) {
+    console.error("[QUERIES] getWarehouses error:", error);
+    return [];
+  }
+}
+export async function getDeliveries() {
+  try {
+    return await prisma.document.findMany({
+      where: { type: "DELIVERY" },
+      include: {
+        lines: {
+          include: {
+            product: true,
+            sourceLocation: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (error) {
+    console.error("[QUERIES] getDeliveries error:", error);
+    return [];
+  }
+}
+
+export async function getTransfers() {
+  try {
+    return await prisma.document.findMany({
+      where: { type: "INTERNAL_TRANSFER" },
+      include: {
+        lines: {
+          include: {
+            product: true,
+            sourceLocation: true,
+            destLocation: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (error) {
+    console.error("[QUERIES] getTransfers error:", error);
+    return [];
+  }
+}
+
+export async function getAdjustments() {
+  try {
+    return await prisma.document.findMany({
+      where: { type: "ADJUSTMENT" },
+      include: {
+        lines: {
+          include: {
+            product: true,
+            sourceLocation: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (error) {
+    console.error("[QUERIES] getAdjustments error:", error);
+    return [];
+  }
+}
+
+export async function getLedgerEntries() {
+  try {
+    return await prisma.stockLedger.findMany({
+      include: {
+        product: true,
+        location: { include: { warehouse: true } },
+        user: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100, // Limit to recent 100 movements for performance
+    });
+  } catch (error) {
+    console.error("[QUERIES] getLedgerEntries error:", error);
+    return [];
+  }
+}

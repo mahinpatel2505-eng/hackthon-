@@ -50,18 +50,20 @@ export const OtpVerifySchema = z.object({
 // Product Schemas
 // ────────────────────────────────────────────────────────────
 
-export const CreateProductSchema = z.object({
+export const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
   sku: z
     .string()
     .min(1, "SKU is required")
     .regex(/^[A-Z0-9\-]+$/, "SKU must be uppercase alphanumeric with dashes"),
   category: z.string().min(1, "Category is required"),
-  unitOfMeasure: z.string().default("pcs"),
+  uom: z.string().default("units"),
+  unitOfMeasure: z.string().optional(), // backward compatibility
+  barcode: z.string().optional(),
   reorderLevel: z.number().int().min(0).default(10),
 });
 
-export const UpdateProductSchema = CreateProductSchema.partial().extend({
+export const UpdateProductSchema = productSchema.partial().extend({
   id: z.string().cuid(),
 });
 
@@ -161,7 +163,7 @@ export const DashboardFilterSchema = z.object({
 
 export type SignUpInput = z.infer<typeof SignUpSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
-export type CreateProductInput = z.infer<typeof CreateProductSchema>;
+export type CreateProductInput = z.infer<typeof productSchema>;
 export type UpdateProductInput = z.infer<typeof UpdateProductSchema>;
 export type CreateWarehouseInput = z.infer<typeof CreateWarehouseSchema>;
 export type CreateLocationInput = z.infer<typeof CreateLocationSchema>;
