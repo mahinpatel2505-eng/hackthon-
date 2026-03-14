@@ -1,65 +1,204 @@
-import Image from "next/image";
+import { Suspense } from "react";
+import { getDashboardKPIs, getRecentOperations, getFilterOptions } from "@/lib/queries";
+import { KPIGrid } from "@/components/dashboard/kpi-grid";
+import { FilterBar } from "@/components/dashboard/filter-bar";
+import { OperationsTable } from "@/components/dashboard/operations-table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import {
+  LayoutDashboard,
+  Database,
+} from "lucide-react";
 
-export default function Home() {
+// ────────────────────────────────────────────────────────────
+// Helper: Map URL search params to typed filter object
+// ────────────────────────────────────────────────────────────
+
+type DocType = "RECEIPT" | "DELIVERY" | "INTERNAL_TRANSFER" | "ADJUSTMENT";
+type DocStatus = "DRAFT" | "VALIDATED" | "CANCELLED";
+
+function parseFilters(searchParams: Record<string, string | string[] | undefined>) {
+  const filters: {
+    documentType?: DocType;
+    status?: DocStatus;
+    locationId?: string;
+    category?: string;
+  } = {};
+
+  const type = typeof searchParams.type === "string" ? searchParams.type : undefined;
+  const status = typeof searchParams.status === "string" ? searchParams.status : undefined;
+  const location = typeof searchParams.location === "string" ? searchParams.location : undefined;
+  const category = typeof searchParams.category === "string" ? searchParams.category : undefined;
+
+  if (type && ["RECEIPT", "DELIVERY", "INTERNAL_TRANSFER", "ADJUSTMENT"].includes(type)) {
+    filters.documentType = type as DocType;
+  }
+  if (status && ["DRAFT", "VALIDATED", "CANCELLED"].includes(status)) {
+    filters.status = status as DocStatus;
+  }
+  if (location) filters.locationId = location;
+  if (category) filters.category = category;
+
+  return filters;
+}
+
+// ────────────────────────────────────────────────────────────
+// Defaults when DB is not yet connected
+// ────────────────────────────────────────────────────────────
+
+const defaultKPIs = {
+  totalProducts: 0,
+  lowStockItems: 0,
+  outOfStockItems: 0,
+  pendingReceipts: 0,
+  pendingDeliveries: 0,
+  pendingTransfers: 0,
+};
+
+// ────────────────────────────────────────────────────────────
+// Loading Skeletons
+// ────────────────────────────────────────────────────────────
+
+function KPISkeleton() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Skeleton key={i} className="h-[120px] rounded-xl" />
+      ))}
+    </div>
+  );
+}
+
+function TableSkeleton() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Skeleton key={i} className="h-[52px] rounded-lg" />
+      ))}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Database Connection Banner
+// ────────────────────────────────────────────────────────────
+
+function NoDatabaseBanner() {
+  return (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 flex items-start gap-3">
+      <Database className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+      <div>
+        <h3 className="text-sm font-semibold text-amber-700">Database Not Connected</h3>
+        <p className="text-xs text-amber-600 mt-1">
+          The dashboard is showing default values. To connect your database:
+        </p>
+        <ol className="text-xs text-amber-600 mt-2 space-y-1 list-decimal list-inside">
+          <li>Add your PostgreSQL URL to <code className="bg-amber-500/10 px-1 rounded">.env</code> → <code className="bg-amber-500/10 px-1 rounded">DATABASE_URL</code></li>
+          <li>Run <code className="bg-amber-500/10 px-1 rounded">npx prisma migrate dev --name init</code></li>
+          <li>Restart the dev server</li>
+        </ol>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Main Page (Server Component)
+// ────────────────────────────────────────────────────────────
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolvedParams = await searchParams;
+  const filters = parseFilters(resolvedParams);
+
+  // Attempt to fetch data — gracefully handle missing DB
+  let kpis = defaultKPIs;
+  let operations: Awaited<ReturnType<typeof getRecentOperations>> = [];
+  let filterOptions = { categories: [] as string[], locations: [] as { id: string; name: string; type: string }[] };
+  let dbConnected = true;
+
+  try {
+    const [kpiResult, opsResult, filterResult] = await Promise.all([
+      getDashboardKPIs(),
+      getRecentOperations({ ...filters, limit: 50, offset: 0 }),
+      getFilterOptions(),
+    ]);
+    kpis = kpiResult;
+    operations = opsResult;
+    filterOptions = filterResult;
+  } catch (error) {
+    console.error("[DASHBOARD] Database not available:", error);
+    dbConnected = false;
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-lg">
+        <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-6">
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <LayoutDashboard className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold leading-tight">CoreInventory</h1>
+              <p className="text-xs text-muted-foreground leading-none">Dashboard</p>
+            </div>
+          </div>
+          {dbConnected && (
+            <div className="ml-auto flex items-center gap-1.5 text-xs text-emerald-600">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              Connected
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="mx-auto max-w-7xl space-y-6 px-6 py-8">
+        {/* Database Warning */}
+        {!dbConnected && <NoDatabaseBanner />}
+
+        {/* KPI Grid */}
+        <section id="kpi-section">
+          <h2 className="text-lg font-semibold mb-4">Inventory Overview</h2>
+          <Suspense fallback={<KPISkeleton />}>
+            <KPIGrid kpis={kpis} />
+          </Suspense>
+        </section>
+
+        <Separator />
+
+        {/* Filters */}
+        <section id="filters-section">
+          <h2 className="text-lg font-semibold mb-4">Recent Operations</h2>
+          <Suspense fallback={<Skeleton className="h-[56px] rounded-xl" />}>
+            <FilterBar
+              categories={filterOptions.categories}
+              locations={filterOptions.locations}
+            />
+          </Suspense>
+        </section>
+
+        {/* Operations Table */}
+        <section id="operations-section">
+          <Suspense fallback={<TableSkeleton />}>
+            <OperationsTable operations={operations} />
+          </Suspense>
+        </section>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t py-6">
+        <div className="mx-auto max-w-7xl px-6">
+          <p className="text-center text-xs text-muted-foreground">
+            CoreInventory — Built for the Hackathon with Next.js, Prisma &amp; Shadcn UI
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </footer>
     </div>
   );
 }
