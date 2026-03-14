@@ -4,6 +4,8 @@ import { OtpRequestSchema } from "@/lib/validators";
 import { apiResponse, validateBody } from "@/lib/api-utils";
 import crypto from "crypto";
 
+import { sendOtpEmail } from "@/lib/email";
+
 export async function POST(req: NextRequest) {
   try {
     const body = await validateBody(req, OtpRequestSchema);
@@ -29,12 +31,19 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // In a real app, send email here. For hackathon, we'll log it.
+    // Send OTP (actual email + dev console)
     console.log(`[AUTH] OTP for ${body.email}: ${otp}`);
+    
+    // Attempt actual email delivery
+    const emailResult = await sendOtpEmail(body.email, otp);
+    if (!emailResult.success) {
+      console.error("[AUTH] Email delivery failed, but proceeding for dev mode.");
+    }
 
     return apiResponse.success({ 
       message: "If an account exists, an OTP has been sent.",
-      devOtp: process.env.NODE_ENV === "development" ? otp : undefined
+      devOtp: process.env.NODE_ENV === "development" ? otp : undefined,
+      emailSent: emailResult.success
     });
   } catch (error: any) {
     if (error.name === "ZodError") return apiResponse.validationError(error.errors);

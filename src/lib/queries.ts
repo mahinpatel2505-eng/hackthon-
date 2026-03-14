@@ -62,6 +62,34 @@ export async function getDashboardKPIs() {
   };
 }
 
+export async function getLowStockDetails() {
+  try {
+    const lowStockDetails = await prisma.$queryRaw<any[]>`
+      SELECT 
+        p.id, 
+        p.name, 
+        p.sku, 
+        p."reorderLevel",
+        COALESCE(SUM(sq.quantity), 0) as "currentStock"
+      FROM products p
+      LEFT JOIN stock_quants sq ON sq."productId" = p.id
+      WHERE p."isActive" = true
+      GROUP BY p.id, p.name, p.sku, p."reorderLevel"
+      HAVING COALESCE(SUM(sq.quantity), 0) <= p."reorderLevel"
+      ORDER BY ("currentStock" / NULLIF(p."reorderLevel", 0)) ASC
+      LIMIT 10
+    `;
+    return lowStockDetails.map((item: any) => ({
+      ...item,
+      currentStock: Number(item.currentStock),
+      criticality: item.reorderLevel > 0 ? (Number(item.currentStock) / item.reorderLevel) : 0
+    }));
+  } catch (error) {
+    console.error("[QUERIES] getLowStockDetails error:", error);
+    return [];
+  }
+}
+
 // ────────────────────────────────────────────────────────────
 // Recent Operations Query (with dynamic filters)
 // ────────────────────────────────────────────────────────────

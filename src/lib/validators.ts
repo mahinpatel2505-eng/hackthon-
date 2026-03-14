@@ -11,7 +11,7 @@ export const DocumentTypeEnum = z.enum([
   "INTERNAL_TRANSFER",
   "ADJUSTMENT",
 ]);
-export const DocumentStatusEnum = z.enum(["DRAFT", "VALIDATED", "CANCELLED"]);
+export const DocumentStatusEnum = z.enum(["DRAFT", "PICKING", "PACKING", "SHIPPED", "VALIDATED", "CANCELLED"]);
 export const LocationTypeEnum = z.enum(["WAREHOUSE", "RACK", "BIN", "STAGING"]);
 export const LedgerMovementEnum = z.enum(["IN", "OUT"]);
 

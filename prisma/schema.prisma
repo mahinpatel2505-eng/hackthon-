@@ -181,6 +181,9 @@ enum DocumentType {
 
 enum DocumentStatus {
   DRAFT
+  PICKING
+  PACKING
+  SHIPPED
   VALIDATED
   CANCELLED
 }

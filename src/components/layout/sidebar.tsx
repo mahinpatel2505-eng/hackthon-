@@ -39,6 +39,8 @@ const navItems = [
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
+import { GlobalSearch } from "./GlobalSearch";
+
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -74,7 +76,7 @@ export function Sidebar() {
         )}
       >
         <div className="h-full px-3 py-4 overflow-y-auto flex flex-col">
-          <div className="flex items-center gap-3 mb-8 px-2">
+          <div className="flex items-center gap-3 mb-6 px-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shrink-0">
               <LayoutDashboard className="h-5 w-5" />
             </div>
@@ -85,6 +87,13 @@ export function Sidebar() {
               </div>
             )}
           </div>
+
+          {/* Global Search Integration */}
+          {isOpen && (
+            <div className="px-2 mb-6">
+              <GlobalSearch />
+            </div>
+          )}
 
           <nav className="flex-1 space-y-2">
             {navItems.map((item) => (

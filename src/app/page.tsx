@@ -1,8 +1,9 @@
 import { Suspense } from "react";
-import { getDashboardKPIs, getRecentOperations, getFilterOptions } from "@/lib/queries";
+import { getDashboardKPIs, getRecentOperations, getFilterOptions, getLowStockDetails } from "@/lib/queries";
 import { KPIGrid } from "@/components/dashboard/kpi-grid";
 import { FilterBar } from "@/components/dashboard/filter-bar";
 import { OperationsTable } from "@/components/dashboard/operations-table";
+import { LowStockAlerts } from "@/components/dashboard/low-stock-alerts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -117,18 +118,21 @@ export default async function DashboardPage({
   // Attempt to fetch data — gracefully handle missing DB
   let kpis = defaultKPIs;
   let operations: Awaited<ReturnType<typeof getRecentOperations>> = [];
+  let lowStockItems: Awaited<ReturnType<typeof getLowStockDetails>> = [];
   let filterOptions = { categories: [] as string[], locations: [] as { id: string; name: string; type: string }[] };
   let dbConnected = true;
 
   try {
-    const [kpiResult, opsResult, filterResult] = await Promise.all([
+    const [kpiResult, opsResult, filterResult, lowStockResult] = await Promise.all([
       getDashboardKPIs(),
       getRecentOperations({ ...filters, limit: 50, offset: 0 }),
       getFilterOptions(),
+      getLowStockDetails(),
     ]);
     kpis = kpiResult;
     operations = opsResult;
     filterOptions = filterResult;
+    lowStockItems = lowStockResult;
   } catch (error) {
     console.error("[DASHBOARD] Database not available:", error);
     dbConnected = false;
@@ -169,6 +173,14 @@ export default async function DashboardPage({
             <KPIGrid kpis={kpis} />
           </Suspense>
         </section>
+
+        {/* Reorder Alerts */}
+        {lowStockItems.length > 0 && (
+          <section id="alerts-section">
+            <h2 className="text-lg font-semibold mb-4">Operational Urgency</h2>
+            <LowStockAlerts items={lowStockItems} />
+          </section>
+        )}
 
         <Separator />
 
