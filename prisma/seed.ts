@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
+import bcrypt from "bcrypt";
 import "dotenv/config";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
@@ -10,17 +11,21 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log("🌱 Starting seeding...");
 
-  // 1. Create Admin User
+  // 1. Create Admin User with PROPERLY HASHED password
+  const adminPasswordHash = await bcrypt.hash("Admin@123", 12);
+
   const admin = await prisma.user.upsert({
     where: { email: "admin@coreinventory.com" },
-    update: {},
+    update: { passwordHash: adminPasswordHash },
     create: {
       email: "admin@coreinventory.com",
       name: "Admin User",
-      passwordHash: "demo-password-hash", // In a real app, hash this
+      passwordHash: adminPasswordHash,
       role: "ADMIN",
     },
   });
+
+  console.log("✅ Admin user ready (email: admin@coreinventory.com, password: Admin@123)");
 
   // 2. Create Warehouses
   const mainWarehouse = await prisma.warehouse.upsert({
@@ -132,11 +137,11 @@ async function main() {
     create: {
       productId: chair.id,
       locationId: staging.id,
-      quantity: 5, // Below reorder level (10)
+      quantity: 5,
     },
   });
 
-  // 6. Create some sample operations (Documents)
+  // 6. Create sample operations (Documents)
   await prisma.document.upsert({
     where: { reference: "REC-2024-001" },
     update: {},
@@ -173,6 +178,7 @@ async function main() {
   });
 
   console.log("✅ Seeding complete!");
+  console.log("📋 Login credentials → admin@coreinventory.com / Admin@123");
 }
 
 main()

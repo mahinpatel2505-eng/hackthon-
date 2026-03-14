@@ -186,6 +186,24 @@ export async function getProducts(search?: string) {
   }
 }
 
+export async function getProduct(id: string) {
+  try {
+    return await prisma.product.findUnique({
+      where: { id, isActive: true },
+      include: {
+        stockQuants: {
+          include: {
+            location: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("[QUERIES] getProduct error:", error);
+    return null;
+  }
+}
+
 export async function getReceipts() {
   try {
     const receipts = await prisma.document.findMany({
